@@ -35,6 +35,6 @@ def add_figures(image):
 
     return image
 
-image = cv2.imread("liverpool-chelsea.jpeg")
+image = cv2.imread("liverpool2.jpg")
 cv2.imwrite("test.jpg", add_figures(image))
 
