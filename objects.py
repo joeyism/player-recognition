@@ -43,15 +43,42 @@ class PlayerImage(object):
     main_color = None
     image = None
     histogram = None
+    weight = None
+    debug = 0
 
-    def __init__(self, image, coord):
- 
+    def __init__(self, image, coord, weight, debug=0):
+        self.weight = weight
+        self.debug = debug
+
+        boundaries = [
+            ([17, 15, 100], [50, 56, 200]),
+            ([86, 31, 4], [220, 88, 50]),
+            ([25, 146, 190], [62, 174, 250]),
+            ([103, 86, 65], [145, 133, 128]),
+            ([80, 0, 0], [255, 133, 133]),
+            ([200,200,200], [255, 255, 255])
+        ]
+        filtered_images = []
+        colors = []
+        scores = []
+        color_score_pair = []
+
         def centroid_histogram(clt):
             numLabels = np.arange(0, len(np.unique(clt.labels_)) + 1)
             (hist, _) = np.histogram(clt.labels_, bins = numLabels)
             hist = hist.astype("float")
             hist /= hist.sum()
             return hist
+
+        def filter_by_boundary(img, boundary):
+            lower, upper = boundary
+            lower = np.array(lower, dtype = "uint8")
+            upper = np.array(upper, dtype = "uint8")
+     
+            mask = cv2.inRange(img, lower, upper)
+            output = cv2.bitwise_and(img, img, mask = mask)
+            return output
+     
 
         #center
         self.image = image[coord.y: coord.y + coord.h, coord.x: coord.x + coord.w]
@@ -60,25 +87,45 @@ class PlayerImage(object):
         #crop
         img = self.image[int(height/4):int(2*height/4), int(width/4):int(3*width/4), :]
         self.image = img
-
         height, width, dim = img.shape
 
         # normalize
-        normalizedImg = np.zeros((38, 38))
-
+        normalizedImg = np.zeros((30, 30))
         self.image = cv2.normalize(self.image,  normalizedImg, 0, 255, cv2.NORM_MINMAX)
         self.histogram = cv2.calcHist([self.image],[0],None,[256],[0,256])
 
-        #kmeans
-        img_vec = np.reshape(img, [height * width, dim] )
-        kmeans = KMeans(n_clusters=5)
-        kmeans.fit( img_vec )
+        kmeans = KMeans(n_clusters=2)
+        for j, boundary in enumerate(boundaries):
+            img = filter_by_boundary(self.image, boundary)
+            #cv2.imwrite("player-"+str(self.debug)+"-"+str(j)+".jpg", img)
+            #print("player-"+str(self.debug)+"-"+str(j))
+            img_vec = np.reshape(img, [height * width, dim] )
+            filtered_images.append(img)
 
-        colors = []
-        for center in kmeans.cluster_centers_:
-            colors.append((int(center[0]), int(center[1]), int(center[2])))
+            #kmeans
+            kmeans.fit( img_vec )
+            score = centroid_histogram(kmeans)
+            #print([ [int(b) for b in a] for a in kmeans.cluster_centers_])
+
+            for i, center in enumerate(kmeans.cluster_centers_):
+                color = (int(center[0]), int(center[1]), int(center[2]))
+                if color == (0,0,0):
+                    continue
+                colors.append(color)
+                scores.append(score[i])
+
+
+
         self.colors = colors
-        self.main_color = self.colors[np.argsort(centroid_histogram(kmeans))[-2]]
+        try:
+            self.main_color = self.colors[np.argsort(scores)[-1]]
+        except:
+            self.main_color = (255,255,255)
+
+        #print(self.colors)
+        #print(scores)
+        #print(self.main_color)
+        #print("\n")
 
 class ImageAddition(object):
     ellipse = None
