@@ -1,4 +1,5 @@
 from sklearn.cluster import KMeans
+from multiprocessing import Pool
 import numpy as np
 import cv2
 
@@ -40,15 +41,20 @@ class Ellipse(object):
 
 class PlayerImage(object):
     colors = None
+    coord = None
     main_color = None
     image = None
     histogram = None
     weight = None
     debug = 0
 
-    def __init__(self, image, coord, weight, debug=0):
+    def __init__(self, image, coord, weight, debug =0):
         self.weight = weight
         self.debug = debug
+        self.coord = coord
+        self.image = image[coord.y: coord.y + coord.h, coord.x: coord.x + coord.w]
+
+    def process(self):
 
         boundaries = [
             ([17, 15, 100], [50, 56, 200]),
@@ -81,7 +87,6 @@ class PlayerImage(object):
      
 
         #center
-        self.image = image[coord.y: coord.y + coord.h, coord.x: coord.x + coord.w]
         height, width, dim = self.image.shape
 
         #crop
@@ -97,15 +102,12 @@ class PlayerImage(object):
         kmeans = KMeans(n_clusters=2)
         for j, boundary in enumerate(boundaries):
             img = filter_by_boundary(self.image, boundary)
-            #cv2.imwrite("player-"+str(self.debug)+"-"+str(j)+".jpg", img)
-            #print("player-"+str(self.debug)+"-"+str(j))
             img_vec = np.reshape(img, [height * width, dim] )
             filtered_images.append(img)
 
             #kmeans
             kmeans.fit( img_vec )
             score = centroid_histogram(kmeans)
-            #print([ [int(b) for b in a] for a in kmeans.cluster_centers_])
 
             for i, center in enumerate(kmeans.cluster_centers_):
                 color = (int(center[0]), int(center[1]), int(center[2]))
